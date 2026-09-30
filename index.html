@@ -60,8 +60,8 @@ canvas{
 }
 </style>
 
-<!-- jsQR 函式庫 -->
-<script src="[https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js](https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js)"></script>
+<!-- 正確引入 jsQR 函式庫 -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 </head>
 
 <body>
@@ -133,7 +133,14 @@ function startScan(){
       if(code){
         if(code.data !== lastResult){
           lastResult = code.data;
-          result.textContent = code.data;
+          
+          // 如果掃描到的內容是網址，自動轉換成可點擊的超連結
+          if(code.data.startsWith("http://") || code.data.startsWith("https://")){
+            result.innerHTML = `<a href="${code.data}" target="_blank" rel="noopener noreferrer">${code.data}</a>`;
+          } else {
+            result.textContent = code.data;
+          }
+
           statusText.textContent = "已成功讀到 QR Code";
           console.log("QR Code 內容：", code.data);
         }
