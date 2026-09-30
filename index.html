@@ -21,7 +21,6 @@ h2 {
   margin-bottom: 20px;
 }
 
-/* 攝影機顯示區域 */
 #reader {
   width: 90%;
   max-width: 500px;
@@ -33,7 +32,7 @@ h2 {
   position: relative;
 }
 
-/* 隱藏 Html5Qrcode 預設的掃描框與介面元件 */
+/* 隱藏外框與選單，保持介面乾淨 */
 #reader img,
 #reader__scan_region,
 #reader__dashboard,
@@ -41,7 +40,6 @@ h2 {
   display: none !important;
 }
 
-/* 讓全畫面 video 填滿畫面，不顯示掃描框 */
 #reader video {
   width: 100% !important;
   height: 100% !important;
@@ -85,6 +83,12 @@ button:hover {
   color: #666;
   margin-top: 10px;
 }
+
+#uploadStatus {
+  margin-top: 5px;
+  font-size: 14px;
+  color: #0d6efd;
+}
 </style>
 </head>
 
@@ -103,14 +107,19 @@ button:hover {
   <div><strong>掃描結果：</strong></div>
   <div id="result">尚未讀到 QR Code</div>
   <div id="status">攝影機已關閉</div>
+  <div id="uploadStatus"></div>
 </div>
 
 <script>
+// ⚠️ 請在此處貼上您從 Google Apps Script 取得的網頁應用程式 URL
+const GOOGLE_SCRIPT_URL = "YOUR_GOOGLE_APPS_SCRIPT_URL";
+
 let html5Qrcode = null;
 let lastResult = "";
 
 const resultDiv = document.getElementById("result");
 const statusText = document.getElementById("status");
+const uploadStatus = document.getElementById("uploadStatus");
 
 async function startCamera() {
   try {
@@ -120,7 +129,6 @@ async function startCamera() {
 
     html5Qrcode = new Html5Qrcode("reader");
 
-    // 高解析度設定，實現精準掃描且無預設外框
     const config = { 
       fps: 15,
       videoConstraints: {
@@ -149,7 +157,7 @@ function onScanSuccess(decodedText, decodedResult) {
   if (decodedText !== lastResult) {
     lastResult = decodedText;
     
-    // 若內容為 HTTP / HTTPS 網址，自動轉換為超連結
+    // 顯示讀取結果
     if (decodedText.startsWith("http://") || decodedText.startsWith("https://")) {
       resultDiv.innerHTML = `<a href="${decodedText}" target="_blank" rel="noopener noreferrer">${decodedText}</a>`;
     } else {
@@ -157,6 +165,39 @@ function onScanSuccess(decodedText, decodedResult) {
     }
 
     statusText.textContent = "已成功讀到 QR Code";
+
+    // 自動上傳資料到 Google 試算表
+    sendToGoogleSheet(decodedText);
+  }
+}
+
+async function sendToGoogleSheet(qrCodeData) {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === "YOUR_GOOGLE_APPS_SCRIPT_URL") {
+    uploadStatus.textContent = "⚠️ 未設定 Google Apps Script URL，無法自動寫入試算表。";
+    uploadStatus.style.color = "red";
+    return;
+  }
+
+  uploadStatus.textContent = "⏳ 正在新增至 Google 試算表...";
+  uploadStatus.style.color = "#0d6efd";
+
+  try {
+    // 透過 fetch 發送 POST 請求
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors", // 避免 CORS 跨域限制
+      headers: {
+        "Content-Type": "text/plain"
+      },
+      body: JSON.stringify({ qrCode: qrCodeData })
+    });
+
+    uploadStatus.textContent = "✅ 已成功寫入 Google 試算表 A 欄！";
+    uploadStatus.style.color = "green";
+  } catch (error) {
+    console.error("寫入失敗:", error);
+    uploadStatus.textContent = "❌ 寫入試算表失敗，請稍後再試。";
+    uploadStatus.style.color = "red";
   }
 }
 
@@ -171,6 +212,7 @@ async function stopCamera() {
     }
   }
   statusText.textContent = "攝影機已關閉";
+  uploadStatus.textContent = "";
 }
 
 window.addEventListener("beforeunload", () => {
