@@ -56,7 +56,7 @@
   </div>
 
   <script>
-    // 填入您在步驟 1 取得的 Google Apps Script Web App URL
+    // 填入您取得的 Google Apps Script Web App URL
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwTq7xNEyb3c06JLHbUu67uSdDHBYFOfmAVJJM79048Aj3vNe5Tkv1Bbuh0rcOWcCK4/exec";
 
     let lastScannedText = "";
@@ -114,10 +114,12 @@
       // 掃描過程中的幀未發現 QR Code 時的正常忽略
     }
 
-    // 初始化掃描器
+    // 初始化掃描器（移除 qrbox 參數，取消掃描框）
     const html5QrcodeScanner = new Html5QrcodeScanner(
       "reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
+      { 
+        fps: 10
+      },
       /* verbose= */ false
     );
 
