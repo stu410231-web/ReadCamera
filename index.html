@@ -1,224 +1,127 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QR Code 掃描測試</title>
-
-<!-- 引入高辨識率 Html5Qrcode 函式庫 -->
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-body {
-  font-family: Arial, sans-serif;
-  text-align: center;
-  background: #f5f5f5;
-  margin: 0;
-  padding: 20px;
-}
-
-h2 {
-  margin-bottom: 20px;
-}
-
-#reader {
-  width: 90%;
-  max-width: 500px;
-  height: 250px;
-  margin: 0 auto;
-  border-radius: 10px;
-  background: #000;
-  overflow: hidden;
-  position: relative;
-}
-
-/* 隱藏外框與選單，保持介面乾淨 */
-#reader img,
-#reader__scan_region,
-#reader__dashboard,
-#reader__status_span {
-  display: none !important;
-}
-
-#reader video {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  border-radius: 10px;
-}
-
-button {
-  padding: 10px 20px;
-  margin: 10px;
-  font-size: 16px;
-  cursor: pointer;
-  background-color: #efefef;
-  border: 1px solid #767676;
-  border-radius: 2px;
-}
-
-button:hover {
-  background-color: #e5e5e5;
-}
-
-#resultBox {
-  margin: 20px auto;
-  width: 90%;
-  max-width: 500px;
-  background: #fff;
-  border-radius: 10px;
-  padding: 15px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  text-align: left;
-  word-break: break-all;
-}
-
-#result {
-  color: #d63384;
-  font-weight: bold;
-  font-size: 18px;
-}
-
-#status {
-  color: #666;
-  margin-top: 10px;
-}
-
-#uploadStatus {
-  margin-top: 5px;
-  font-size: 14px;
-  color: #0d6efd;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Code 掃描器</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+      background-color: #f4f4f9;
+    }
+    #reader {
+      width: 100%;
+      max-width: 500px;
+      margin: 20px auto;
+      border: 2px solid #333;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    #result-box {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      display: inline-block;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .status-text {
+      color: #666;
+      font-size: 0.9em;
+      margin-top: 5px;
+    }
+    .success-text {
+      color: #28a745;
+      font-size: 0.85em;
+      margin-top: 5px;
+    }
+  </style>
 </head>
-
 <body>
 
-<h2>QR Code 掃描測試</h2>
+  <h2>QR Code 掃描測試</h2>
 
-<div id="reader"></div>
+  <div id="reader"></div>
 
-<br>
+  <div id="result-box">
+    <div><strong>掃描結果：</strong></div>
+    <div id="scan-result">尚未讀到 QR Code</div>
+    <div id="status" class="status-text">初始化中...</div>
+  </div>
 
-<button onclick="startCamera()">開啟攝影機</button>
-<button onclick="stopCamera()">關閉攝影機</button>
+  <script>
+    // 填入您在步驟 1 取得的 Google Apps Script Web App URL
+    const GOOGLE_SCRIPT_URL = "填入你的_APPS_SCRIPT_WEB_APP_URL";
 
-<div id="resultBox">
-  <div><strong>掃描結果：</strong></div>
-  <div id="result">尚未讀到 QR Code</div>
-  <div id="status">攝影機已關閉</div>
-  <div id="uploadStatus"></div>
-</div>
+    let lastScannedText = "";
+    let lastScannedTime = 0;
 
-<script>
-// ⚠️ 請在此處貼上您從 Google Apps Script 取得的網頁應用程式 URL
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxfQXZ5SFBcn9Dp7J5TVeZo-jpEKmVlpO_aVFocOHeqJexLxhDHFRWqpzmmvlSohC7F/exec";
+    // 將資料寫入 Google 試算表
+    function saveToGoogleSheet(qrData) {
+      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("填入你的")) {
+        console.warn("請先設定正確的 GOOGLE_SCRIPT_URL！");
+        return;
+      }
 
-let html5Qrcode = null;
-let lastResult = "";
+      const statusEl = document.getElementById("status");
+      statusEl.innerText = "正在儲存至 Google 試算表...";
+      statusEl.className = "status-text";
 
-const resultDiv = document.getElementById("result");
-const statusText = document.getElementById("status");
-const uploadStatus = document.getElementById("uploadStatus");
-
-async function startCamera() {
-  try {
-    if (html5Qrcode) {
-      await stopCamera();
+      fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ qrData: qrData })
+      })
+      .then(() => {
+        statusEl.innerText = "已成功同步至試算表 (儲存庫)！";
+        statusEl.className = "success-text";
+      })
+      .catch((err) => {
+        console.error("寫入失敗：", err);
+        statusEl.innerText = "寫入試算表失敗，請檢查網路連線。";
+      });
     }
 
-    html5Qrcode = new Html5Qrcode("reader");
+    // 掃描成功後的回調函數
+    function onScanSuccess(decodedText, decodedResult) {
+      const now = Date.now();
 
-    const config = { 
-      fps: 15,
-      videoConstraints: {
-        facingMode: "environment",
-        width: { min: 640, ideal: 1280, max: 1920 },
-        height: { min: 480, ideal: 720, max: 1080 }
+      // 防止 3 秒內連續寫入相同的 QR Code
+      if (decodedText === lastScannedText && (now - lastScannedTime < 3000)) {
+        return;
       }
-    };
 
-    await html5Qrcode.start(
-      { facingMode: "environment" },
-      config,
-      onScanSuccess
+      lastScannedText = decodedText;
+      lastScannedTime = now;
+
+      // 更新畫面顯示
+      document.getElementById("scan-result").innerText = decodedText;
+
+      // 發送資料至 Google 試算表
+      saveToGoogleSheet(decodedText);
+    }
+
+    function onScanFailure(error) {
+      // 掃描過程中的幀未發現 QR Code 時的正常忽略
+    }
+
+    // 初始化掃描器
+    const html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader",
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      /* verbose= */ false
     );
 
-    statusText.textContent = "攝影機已開啟，請將 QR Code 對準鏡頭";
-
-  } catch (err) {
-    console.error(err);
-    alert("無法開啟攝影機，請確認已給予存取權限！");
-    statusText.textContent = "無法開啟攝影機";
-  }
-}
-
-function onScanSuccess(decodedText, decodedResult) {
-  if (decodedText !== lastResult) {
-    lastResult = decodedText;
-    
-    // 顯示讀取結果
-    if (decodedText.startsWith("http://") || decodedText.startsWith("https://")) {
-      resultDiv.innerHTML = `<a href="${decodedText}" target="_blank" rel="noopener noreferrer">${decodedText}</a>`;
-    } else {
-      resultDiv.textContent = decodedText;
-    }
-
-    statusText.textContent = "已成功讀到 QR Code";
-
-    // 自動上傳資料到 Google 試算表
-    sendToGoogleSheet(decodedText);
-  }
-}
-
-async function sendToGoogleSheet(qrCodeData) {
-  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === "YOUR_GOOGLE_APPS_SCRIPT_URL") {
-    uploadStatus.textContent = "⚠️ 未設定 Google Apps Script URL，無法自動寫入試算表。";
-    uploadStatus.style.color = "red";
-    return;
-  }
-
-  uploadStatus.textContent = "⏳ 正在新增至 Google 試算表...";
-  uploadStatus.style.color = "#0d6efd";
-
-  try {
-    // 透過 fetch 發送 POST 請求
-    await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      mode: "no-cors", // 避免 CORS 跨域限制
-      headers: {
-        "Content-Type": "text/plain"
-      },
-      body: JSON.stringify({ qrCode: qrCodeData })
-    });
-
-    uploadStatus.textContent = "✅ 已成功寫入 Google 試算表 A 欄！";
-    uploadStatus.style.color = "green";
-  } catch (error) {
-    console.error("寫入失敗:", error);
-    uploadStatus.textContent = "❌ 寫入試算表失敗，請稍後再試。";
-    uploadStatus.style.color = "red";
-  }
-}
-
-async function stopCamera() {
-  if (html5Qrcode) {
-    try {
-      await html5Qrcode.stop();
-      html5Qrcode.clear();
-      html5Qrcode = null;
-    } catch (err) {
-      console.error(err);
-    }
-  }
-  statusText.textContent = "攝影機已關閉";
-  uploadStatus.textContent = "";
-}
-
-window.addEventListener("beforeunload", () => {
-  stopCamera();
-});
-</script>
-
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+  </script>
 </body>
 </html>
