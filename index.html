@@ -3,43 +3,103 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR Code 掃描器</title>
+  <title>QR Code 掃描測試</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       text-align: center;
-      padding: 20px;
-      background-color: #f4f4f9;
+      padding: 40px 20px;
+      background-color: #f2f2f2;
+      color: #000;
     }
+
+    h2 {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 25px;
+    }
+
+    /* 攝影機顯示區域 */
     #reader {
       width: 100%;
-      max-width: 500px;
-      margin: 20px auto;
-      border: 2px solid #333;
-      border-radius: 8px;
+      max-width: 650px;
+      height: 320px;
+      margin: 0 auto;
+      background-color: #000;
+      border-radius: 16px;
       overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
+
+    /* 覆蓋 Library 原生多餘的邊框與按鈕樣式 */
+    #reader video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+    }
+
+    /* 按鈕區域 */
+    .button-group {
+      margin-top: 25px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+    }
+
+    .btn {
+      background-color: #e8e8e8;
+      border: 1px solid #767676;
+      color: #000;
+      padding: 10px 20px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: background-color 0.2s;
+    }
+
+    .btn:hover {
+      background-color: #d0d0d0;
+    }
+
+    /* 掃描結果卡片 */
     #result-box {
-      margin-top: 20px;
-      padding: 15px;
       background-color: #ffffff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      display: inline-block;
-      max-width: 500px;
-      width: 90%;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border-radius: 16px;
+      padding: 20px 25px;
+      max-width: 650px;
+      width: 100%;
+      margin: 0 auto;
+      text-align: left;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      box-sizing: border-box;
     }
+
+    .result-title {
+      font-weight: bold;
+      font-size: 1.25rem;
+      margin-bottom: 8px;
+    }
+
+    .result-content {
+      color: #d83b01; /* 圖片中的粉橘紅色文字 */
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      word-break: break-all;
+    }
+
     .status-text {
       color: #666;
-      font-size: 0.9em;
-      margin-top: 5px;
+      font-size: 1rem;
     }
+
     .success-text {
       color: #28a745;
-      font-size: 0.85em;
-      margin-top: 5px;
+      font-size: 1rem;
     }
   </style>
 </head>
@@ -47,22 +107,31 @@
 
   <h2>QR Code 掃描測試</h2>
 
+  <!-- 相機畫面 -->
   <div id="reader"></div>
 
+  <!-- 按鈕區 -->
+  <div class="button-group">
+    <button class="btn" onclick="startCamera()">開啟攝影機</button>
+    <button class="btn" onclick="stopCamera()">關閉攝影機</button>
+  </div>
+
+  <!-- 結果顯示區 -->
   <div id="result-box">
-    <div><strong>掃描結果：</strong></div>
-    <div id="scan-result">尚未讀到 QR Code</div>
-    <div id="status" class="status-text">初始化中...</div>
+    <div class="result-title">掃描結果：</div>
+    <div id="scan-result" class="result-content">尚未讀到 QR Code</div>
+    <div id="status" class="status-text">攝影機已關閉</div>
   </div>
 
   <script>
-    // 填入您取得的 Google Apps Script Web App URL
+    // Google Apps Script Web App URL
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwTq7xNEyb3c06JLHbUu67uSdDHBYFOfmAVJJM79048Aj3vNe5Tkv1Bbuh0rcOWcCK4/exec";
 
+    let html5QrCode = null;
     let lastScannedText = "";
     let lastScannedTime = 0;
 
-    // 將資料寫入 Google 試算表
+    // 同步寫入 Google 試算表
     function saveToGoogleSheet(qrData) {
       if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("填入你的")) {
         console.warn("請先設定正確的 GOOGLE_SCRIPT_URL！");
@@ -91,11 +160,11 @@
       });
     }
 
-    // 掃描成功後的回調函數
+    // 掃描成功處理函數
     function onScanSuccess(decodedText, decodedResult) {
       const now = Date.now();
 
-      // 防止 3 秒內連續寫入相同的 QR Code
+      // 防止 3 秒內連續重複發送相同資料
       if (decodedText === lastScannedText && (now - lastScannedTime < 3000)) {
         return;
       }
@@ -103,27 +172,55 @@
       lastScannedText = decodedText;
       lastScannedTime = now;
 
-      // 更新畫面顯示
+      // 更新介面
       document.getElementById("scan-result").innerText = decodedText;
 
-      // 發送資料至 Google 試算表
+      // 發送至試算表
       saveToGoogleSheet(decodedText);
     }
 
-    function onScanFailure(error) {
-      // 掃描過程中的幀未發現 QR Code 時的正常忽略
+    // 開啟攝影機
+    function startCamera() {
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+      }
+
+      const statusEl = document.getElementById("status");
+      statusEl.innerText = "相機啟動中...";
+      statusEl.className = "status-text";
+
+      html5QrCode.start(
+        { facingMode: "environment" }, // 使用後置鏡頭
+        {
+          fps: 10
+        },
+        onScanSuccess,
+        (errorMessage) => {
+          // 忽略無讀取到的影格
+        }
+      )
+      .then(() => {
+        statusEl.innerText = "攝影機運作中，請將 QR Code 對準鏡頭";
+      })
+      .catch((err) => {
+        console.error("開啟相機失敗：", err);
+        statusEl.innerText = "無法開啟攝影機，請確認已給予相機權限。";
+      });
     }
 
-    // 初始化掃描器（移除 qrbox 參數，取消掃描框）
-    const html5QrcodeScanner = new Html5QrcodeScanner(
-      "reader",
-      { 
-        fps: 10
-      },
-      /* verbose= */ false
-    );
-
-    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    // 關閉攝影機
+    function stopCamera() {
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+          document.getElementById("status").innerText = "攝影機已關閉";
+          document.getElementById("status").className = "status-text";
+        }).catch((err) => {
+          console.error("關閉相機失敗：", err);
+        });
+      } else {
+        document.getElementById("status").innerText = "攝影機已關閉";
+      }
+    }
   </script>
 </body>
 </html>
